@@ -43,17 +43,15 @@ XnMuLyV1FQ==
 
       TYPES = ['boarding-pass', 'coupon', 'event-ticket', 'store-card', 'generic']
 
-      def initialize(directory)
-        @assets = Dir[File.join(directory, '*')]
-        @pass = File.read(@assets.delete(@assets.detect{|file| File.basename(file) == 'pass.json'}))
+      def initialize(assets)
+        @assets = assets
       end
 
       def manifest
         checksums = {}
-        checksums['pass.json'] = Digest::SHA1.hexdigest(@pass)
 
-        @assets.each do |file|
-          checksums[File.basename(file)] = Digest::SHA1.file(file).hexdigest 
+        @assets.each do |file_name, file_contents|
+          checksums[file_name] = Digest::SHA1.hexdigest(file_contents)
         end
 
         checksums.to_json
@@ -61,12 +59,11 @@ XnMuLyV1FQ==
 
       def pkpass
         Zip::ZipOutputStream.write_buffer do |zip|
-          zip.put_next_entry 'pass.json' and zip.write @pass
-          zip.put_next_entry 'manifest.json' and zip.write manifest
-          zip.put_next_entry 'signature' and zip.write signature(manifest)
+          zip.put_next_entry 'manifest.json' and zip.print manifest
+          zip.put_next_entry 'signature' and zip.print signature(manifest)
 
-          @assets.each do |file|
-            zip.put_next_entry File.basename(file) and zip.print IO.read(file)
+          @assets.each do |file_name, file_contents|
+            zip.put_next_entry file_name and zip.print file_contents
           end
         end
       end
@@ -75,13 +72,7 @@ XnMuLyV1FQ==
 
       def signature(manifest)
         pk7 = OpenSSL::PKCS7.sign(p12.certificate, p12.key, manifest, [wwdr], OpenSSL::PKCS7::BINARY | OpenSSL::PKCS7::DETACHED)
-        data = OpenSSL::PKCS7.write_smime(pk7)
-
-        start = %{filename=\"smime.p7s"\n\n}
-        finish = "\n\n------"
-        data = data[(data.index(start) + start.length)...(data.rindex(finish) + finish.length)]
-
-        Base64.decode64(data)
+        pk7.to_der
       end
 
       def p12

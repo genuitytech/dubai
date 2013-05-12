@@ -1,4 +1,4 @@
-*.p12
-*.cer
-coverage/
-tmp/
+*.pass
+.DS_Store
+*.pkpass
+*.gem
